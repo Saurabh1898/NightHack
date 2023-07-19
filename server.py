@@ -76,7 +76,8 @@ def save_chatroom_history(client_socket):
 
 # Save chat to the database
 def save_chat_to_db(chatroom_id, chat_history):
-    db_conn.execute("INSERT INTO chat_history (chatroom_id, history) VALUES (?, ?)", (chatroom_id, chat_history))
+    cursor = db_conn.cursor()
+    cursor.execute("INSERT INTO chat_history (chatroom_id, history) VALUES (?, ?)", (chatroom_id, chat_history))
     db_conn.commit()
 
 # Notify clients with a message
@@ -92,9 +93,8 @@ def get_chatroom_id(client_socket):
     return None
 
 # Create chat history table in the database
-def create_chat_history_table():
-    db_conn.execute("CREATE TABLE IF NOT EXISTS chat_history (id INTEGER PRIMARY KEY AUTOINCREMENT, chatroom_id INTEGER, history TEXT)")
-    db_conn.commit()
+def create_chat_history_table(cursor):
+    cursor.execute("CREATE TABLE IF NOT EXISTS chat_history (id INTEGER PRIMARY KEY AUTOINCREMENT, chatroom_id INTEGER, history TEXT)")
 
 # Main server function
 def start_server():
@@ -104,6 +104,11 @@ def start_server():
 
     print(f"Server started on {HOST}:{PORT}")
 
+    # Create or connect to the database
+    db_conn = sqlite3.connect(DB_FILE)
+    cursor = db_conn.cursor()
+    create_chat_history_table(cursor)
+
     while True:
         client_socket, client_address = server_socket.accept()
 
@@ -111,17 +116,12 @@ def start_server():
 
         print(f"Client connected: {client_address}")
 
-        client_thread = threading.Thread(target=handle_client, args=(client_socket,))
+        client_thread = threading.Thread(target=handle_client, args=(client_socket, db_conn))
         client_thread.start()
+
+    # Close the database connection
+    db_conn.close()
 
 # Start the server
 if __name__ == '__main__':
-    # Create or connect to the database
-    db_conn = sqlite3.connect(DB_FILE)
-    create_chat_history_table()
-
-    try:
-        start_server()
-    finally:
-        # Close the database connection
-        db_conn.close()
+    start_server()
